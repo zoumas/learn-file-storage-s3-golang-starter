@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -28,10 +29,52 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	// TODO: implement the upload here
+	const maxMemory = 10 << 20
+	if err := r.ParseMultipartForm(maxMemory); err != nil {
+		respondWithError(w, http.StatusBadRequest, "Couldn't parse multipart form", err)
+		return
+	}
 
-	respondWithJSON(w, http.StatusOK, struct{}{})
+	formFile, header, err := r.FormFile("thumbnail")
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Couldn't get form file", err)
+		return
+	}
+
+	contentType := header.Header.Get("Content-Type")
+
+	data, err := io.ReadAll(formFile)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't read from form file", err)
+		return
+	}
+
+	video, err := cfg.db.GetVideo(videoID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Couldn't get video metadata", err)
+		return
+	}
+
+	if video.UserID != userID {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	videoThumbnails[videoID] = thumbnail{
+		mediaType: contentType,
+		data:      data,
+	}
+
+	if video.ThumbnailURL == nil {
+		video.ThumbnailURL = new(string)
+	}
+	*video.ThumbnailURL = fmt.Sprintf("http://localhost:%s/api/thumbnails/%s", cfg.port, video.ID.String())
+	if err := cfg.db.UpdateVideo(video); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update video", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, video)
 }

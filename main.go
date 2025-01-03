@@ -25,8 +25,8 @@ type apiConfig struct {
 }
 
 type thumbnail struct {
-	data      []byte
 	mediaType string
+	data      []byte
 }
 
 var videoThumbnails = map[uuid.UUID]thumbnail{}
