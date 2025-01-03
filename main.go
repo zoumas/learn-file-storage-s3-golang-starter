@@ -126,7 +126,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: mux,
+		Handler: middlewareLogger(mux),
 	}
 
 	log.Printf("Serving on: http://localhost:%s/app/\n", port)
